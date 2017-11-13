@@ -2,18 +2,35 @@
 # # vi: set ft=ruby :
 
 require 'fileutils'
+require 'yaml'
 
 Vagrant.require_version ">= 1.6.0"
 
 # Defaults for config options defined in CONFIG
+$box_name = "dmrub/centos7" # "centos/7"
 $num_instances = 3
-$instance_name_prefix = "centos"
+$instance_name_prefix = "kube"
 $enable_serial_logging = false
 $share_home = false
 $vm_gui = false
-$vm_memory = 3072
+$vm_memory = 2048
 $vm_cpus = 2
 $forwarded_ports = {}
+
+# dir = File.dirname(File.expand_path(__FILE__))
+# if File.exist?("#{dir}/config.yml")
+#   vconfig = YAML::load_file("#{dir}/config.yml")
+#   $num_instances = vconfig["num_instances"]
+#   $instance_name_prefix = vconfig["instance_name_prefix"]
+#   $enable_serial_logging = false
+#   $share_home = false
+#   $vm_gui = false
+#   $vm_memory = 3072
+#   $vm_cpus = 2
+#   $forwarded_ports = {}
+
+# end
+
 
 # Attempt to apply the deprecated environment variable NUM_INSTANCES to
 # $num_instances while allowing config.rb to override it
@@ -38,7 +55,11 @@ Vagrant.configure("2") do |config|
   # always use Vagrants insecure key
   config.ssh.insert_key = false
 
-  config.vm.box = "centos/7"
+  # This explicitly sets the order that vagrant will use by default if no --provider given
+  config.vm.provider "virtualbox"
+  config.vm.provider "libvirt"
+
+  config.vm.box = $box_name
 
   # enable hostmanager
   config.hostmanager.enabled = true
@@ -57,9 +78,13 @@ Vagrant.configure("2") do |config|
         serialFile = File.join(logdir, "%s-serial.txt" % vm_name)
         FileUtils.touch(serialFile)
 
+        # https://serverfault.com/questions/453185/vagrant-virtualbox-dns-10-0-2-3-not-working
+        # VBoxManage modifyvm "VM name" --natdnsproxy1 on
+        # VBoxManage modifyvm "VM name" --natdnshostresolver1 on
         config.vm.provider :virtualbox do |vb, override|
           vb.customize ["modifyvm", :id, "--uart1", "0x3F8", "4"]
           vb.customize ["modifyvm", :id, "--uartmode1", serialFile]
+          vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
         end
       end
 
@@ -74,7 +99,7 @@ Vagrant.configure("2") do |config|
         vb.cpus = vm_cpus
       end
 
-      ip = "172.17.11.#{i+100}"
+      ip = "192.168.70.#{i+100}"
       config.vm.network :private_network, ip: ip
 
     end
