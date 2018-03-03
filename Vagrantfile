@@ -11,6 +11,7 @@ defaults = {
   "vm_gui" => false,
   "vm_memory" => 2048,
   "vm_cpus" => 2,
+  "vm_private_subnet" => "192.168.70",
   "forwarded_ports" => {}
 }
 
@@ -62,6 +63,7 @@ $sync_folder = vconfig["sync_folder"].to_bool
 $vm_gui = vconfig["vm_gui"].to_bool
 $vm_memory = vconfig["vm_memory"].to_i
 $vm_cpus = vconfig["vm_cpus"].to_i
+$vm_private_subnet = vconfig["vm_private_subnet"].to_s
 $forwarded_ports = vconfig["forwarded_ports"]
 
 
@@ -85,7 +87,12 @@ Vagrant.configure("2") do |config|
   config.hostmanager.manage_host = true
 
   (1..$vm_num_instances).each do |i|
-    config.vm.define vm_name = "%s-%02d" % [$vm_name, i] do |config|
+    if $vm_num_instances > 1
+      vm_name = "%s-%02d" % [$vm_name, i]
+    else
+      vm_name = $vm_name
+    end
+    config.vm.define vm_name do |config|
       config.vm.hostname = vm_name
 
       if $enable_serial_logging
@@ -123,7 +130,7 @@ Vagrant.configure("2") do |config|
         vb.cpus = $vm_cpus
       end
 
-      ip = "192.168.70.#{i+100}"
+      ip = "#{$vm_private_subnet}.#{i+100}"
       config.vm.network :private_network, ip: ip
 
     end
