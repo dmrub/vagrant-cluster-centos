@@ -41,6 +41,17 @@ class ::Hash
   end
 end
 
+# Workaround for older Ruby version without ERB.result_with_hash method
+if ! ERB.method_defined? :result_with_hash
+  require 'ostruct'
+
+  class ERB
+    def result_with_hash(vars)
+      self.result(OpenStruct.new(vars).instance_eval { binding })
+    end
+  end
+end
+
 # Defaults
 
 vm_defaults = {
