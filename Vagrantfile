@@ -59,6 +59,13 @@ def check_array(value, err_msg)
   end
 end
 
+def check_hash(value, err_msg)
+  if !value.kind_of?(Hash)
+    puts "Error: %s" % err_msg
+    abort
+  end
+end
+
 # Defaults
 
 vm_defaults = {
@@ -69,6 +76,7 @@ vm_defaults = {
   "gui" => false,
   "memory" => 2048,
   "cpus" => 2,
+  "providers" => {},
   "enable_serial_logging" => false,
   "default_nic_type" => nil,
   "private_network_ip_prefix" => "192.168.70.",
@@ -172,6 +180,7 @@ Vagrant.configure("2") do |config|
     forwarded_port_range = vm_conf["forwarded_port_range"]
     synced_folders = vm_conf["synced_folders"]
     public_networks = vm_conf["public_networks"]
+    providers = vm_conf["providers"]
 
     if !forwarded_ports.kind_of?(Array)
       puts "Error: value of 'forwarded_ports' key must be an array"
@@ -189,6 +198,7 @@ Vagrant.configure("2") do |config|
     end
 
     check_array(public_networks, "Error: 'synced_folders' must be an array")
+    check_hash(providers, "Error: 'providers' must be a dictionary")
 
     (0..count-1).each do |index|
       vars = {
@@ -208,7 +218,8 @@ Vagrant.configure("2") do |config|
         "forwarded_ports" => forwarded_ports,
         "forwarded_port_range" => forwarded_port_range,
         "synced_folders" => synced_folders,
-        "public_networks" => public_networks
+        "public_networks" => public_networks,
+        "providers" => providers,
       }
 
       per_instance_vars = per_instance_vm_conf.fetch(index, nil)
@@ -223,7 +234,9 @@ Vagrant.configure("2") do |config|
       vm_name = vm_name_template.result_with_hash(vars)
       vm_private_ip = vm_private_network_ip_template.result_with_hash(vars)
 
-      puts "VM #{global_index}: #{vm_name}"
+      info_prefix = "VM %d: %s" % [global_index, vm_name]
+
+      puts info_prefix
       puts "  Private Network IP: #{vm_private_ip}"
       puts "  Box: #{vars['box']}"
       puts "  Index: #{index} / #{count-1}"
@@ -278,8 +291,17 @@ Vagrant.configure("2") do |config|
             end
           end
 
-          puts "  Synced Folder: Source: #{src} -> Dest: #{dest}, Options: #{options}"
+          puts "%s: Synced Folder: Source: #{src} -> Dest: #{dest}, Options: #{options}" % info_prefix
           node.vm.synced_folder src, dest, options
+        end
+
+        vars['providers'].each do |prov_name, prov_opts|
+          puts "%s: Provider: %s, Options: %p" % [info_prefix, prov_name, prov_opts]
+          node.vm.provider prov_name.to_sym() do |prov|
+            prov_opts.each do |key, value|
+              prov.instance_variable_set(("@" + key).to_sym, value)
+            end
+          end
         end
 
         node.vm.provider :virtualbox do |vb|
@@ -297,7 +319,7 @@ Vagrant.configure("2") do |config|
           guest = fwport["guest"].to_i
           host = fwport["host"].to_i
           protocol = fwport.fetch("protocol", "tcp").to_s
-          puts "  Forward Port: Host #{host} -> Guest #{guest}"
+          puts "%s: Forward Port: Host #{host} -> Guest #{guest}" % info_prefix
           node.vm.network :forwarded_port, guest: guest, host: host, protocol: protocol
         end
 
@@ -320,7 +342,7 @@ Vagrant.configure("2") do |config|
             options[key.to_sym] = value
           end
 
-          puts "  Public Network: Options: #{options}"
+          puts "%s: Public Network: Options: #{options}" % [info_prefix]
           node.vm.network :public_network, options
         end
 
