@@ -52,6 +52,13 @@ if ! ERB.method_defined? :result_with_hash
   end
 end
 
+def check_array(value, err_msg)
+  if !value.kind_of?(Array)
+    puts "Error: %s" % err_msg
+    abort
+  end
+end
+
 # Defaults
 
 vm_defaults = {
@@ -67,6 +74,7 @@ vm_defaults = {
   "private_network_ip_prefix" => "192.168.70.",
   "private_network_ip_template" => "<%= private_network_ip_prefix %><%= global_index+100 %>",
   "synced_folders" => [],
+  "public_networks" => [],
   "forwarded_ports" => [],
   "forwarded_port_range" => []
 }
@@ -163,6 +171,7 @@ Vagrant.configure("2") do |config|
     forwarded_ports = vm_conf["forwarded_ports"]
     forwarded_port_range = vm_conf["forwarded_port_range"]
     synced_folders = vm_conf["synced_folders"]
+    public_networks = vm_conf["public_networks"]
 
     if !forwarded_ports.kind_of?(Array)
       puts "Error: value of 'forwarded_ports' key must be an array"
@@ -178,6 +187,8 @@ Vagrant.configure("2") do |config|
       puts "Error: value of 'synced_folders' key must be an array"
       abort
     end
+
+    check_array(public_networks, "Error: 'synced_folders' must be an array")
 
     (0..count-1).each do |index|
       vars = {
@@ -196,11 +207,13 @@ Vagrant.configure("2") do |config|
         "private_network_ip_template" => private_network_ip_template,
         "forwarded_ports" => forwarded_ports,
         "forwarded_port_range" => forwarded_port_range,
-        "synced_folders" => synced_folders
+        "synced_folders" => synced_folders,
+        "public_networks" => public_networks
       }
 
       per_instance_vars = per_instance_vm_conf.fetch(index, nil)
       if !per_instance_vars.nil?
+        puts "Per instance vars are not nil for index %d, value: %p" % [index, per_instance_vars]
         vars = vars.deep_merge(per_instance_vars)
       end
 
@@ -300,6 +313,16 @@ Vagrant.configure("2") do |config|
         end
 
         node.vm.network :private_network, ip: vm_private_ip #, nic_type: "Am79C973" # "virtio"
+
+        vars['public_networks'].each do |pubnet|
+          options = {}
+          pubnet.each do |key, value|
+            options[key.to_sym] = value
+          end
+
+          puts "  Public Network: Options: #{options}"
+          node.vm.network :public_network, options
+        end
 
       end
     end
